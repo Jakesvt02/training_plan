@@ -42,7 +42,7 @@ interface ProfileData {
   }
   profile: {
     gender: string
-    dateOfBirth: string
+    dateOfBirth: string  // ISO string
     heightCm: number
     weightKg: number
     primaryDiscipline: string
@@ -51,6 +51,7 @@ interface ProfileData {
     goal: string
     goalDate?: string | null
     goalDetail?: string | null
+    weeklyWeightGoalKg?: number | null
     bmi: number
   } | null
 }
@@ -123,6 +124,9 @@ export default function ProfilePage() {
   const [goalDate, setGoalDate] = useState('')
   const [goalDetail, setGoalDetail] = useState('')
   const [discipline, setDiscipline] = useState('')
+  const [weeklyWeightGoalKg, setWeeklyWeightGoalKg] = useState('')
+  const [gender, setGender] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
 
   useEffect(() => {
     apiGet<ProfileData>('/api/profile')
@@ -139,6 +143,9 @@ export default function ProfilePage() {
           setGoalDate(d.profile.goalDate ? d.profile.goalDate.split('T')[0] : '')
           setGoalDetail(d.profile.goalDetail ?? '')
           setDiscipline(d.profile.primaryDiscipline)
+          setWeeklyWeightGoalKg(d.profile.weeklyWeightGoalKg != null ? String(d.profile.weeklyWeightGoalKg) : '')
+          setGender(d.profile.gender)
+          setDateOfBirth(d.profile.dateOfBirth ? d.profile.dateOfBirth.split('T')[0] : '')
         }
       })
       .catch(() => setError('Failed to load profile'))
@@ -160,6 +167,9 @@ export default function ProfilePage() {
         goalDate: goalDate || null,
         goalDetail: goalDetail || null,
         primaryDiscipline: discipline,
+        weeklyWeightGoalKg: weeklyWeightGoalKg ? parseFloat(weeklyWeightGoalKg) : null,
+        gender: gender || undefined,
+        dateOfBirth: dateOfBirth || undefined,
       })
       setData(result)
       // Update the name shown in the nav
@@ -224,10 +234,24 @@ export default function ProfilePage() {
                   <Input value={lastName} onChange={setLastName} />
                 </Field>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Date of birth">
+                  <Input type="date" value={dateOfBirth} onChange={setDateOfBirth} />
+                </Field>
+                <Field label="Gender">
+                  <Select
+                    value={gender}
+                    onChange={setGender}
+                    options={[
+                      { value: 'male', label: 'Male' },
+                      { value: 'female', label: 'Female' },
+                    ]}
+                  />
+                </Field>
+              </div>
               {data.profile && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <StatBadge label="Age" value={age ? `${age}y` : '—'} />
-                  <StatBadge label="Gender" value={data.profile.gender.charAt(0).toUpperCase() + data.profile.gender.slice(1)} />
                   <StatBadge label="BMI" value={String(data.profile.bmi)} />
                 </div>
               )}
@@ -281,6 +305,29 @@ export default function ProfilePage() {
                   onChange={setGoalDetail}
                   placeholder="e.g. Sub-90 min HYROX, 100kg bench press..."
                 />
+              </Field>
+              <Field label="Weekly weight goal">
+                <Select
+                  value={weeklyWeightGoalKg}
+                  onChange={setWeeklyWeightGoalKg}
+                  options={[
+                    { value: '-1',    label: 'Lose 1 kg / week' },
+                    { value: '-0.75', label: 'Lose 0.75 kg / week' },
+                    { value: '-0.5',  label: 'Lose 0.5 kg / week' },
+                    { value: '-0.25', label: 'Lose 0.25 kg / week' },
+                    { value: '0',     label: 'Maintain weight' },
+                    { value: '0.25',  label: 'Gain 0.25 kg / week' },
+                    { value: '0.5',   label: 'Gain 0.5 kg / week' },
+                  ]}
+                />
+                {weeklyWeightGoalKg && weeklyWeightGoalKg !== '0' && (
+                  <p className="text-xs text-gray-500 mt-1 px-1">
+                    {parseFloat(weeklyWeightGoalKg) < 0
+                      ? `${Math.abs(Math.round(parseFloat(weeklyWeightGoalKg) * 7700 / 7))} kcal/day deficit applied in Nutrition`
+                      : `${Math.round(parseFloat(weeklyWeightGoalKg) * 7700 / 7)} kcal/day surplus applied in Nutrition`
+                    }
+                  </p>
+                )}
               </Field>
               {goalDate && (
                 <div className="text-xs text-gray-500 px-1">

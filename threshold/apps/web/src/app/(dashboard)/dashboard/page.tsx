@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { apiGet, apiPost } from '@/lib/api'
 import { ActivityCard } from '@/components/activity-card'
+import TrainingLoadChart from '@/components/TrainingLoadChart'
 import type { WeeklyPlanResponse, SessionPlan, Activity, LogExercise, LogSet } from '@threshold/shared'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -800,6 +801,9 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* Training load chart */}
+        <TrainingLoadChart />
 
         {/* Recent activities */}
         {recentActivities.length > 0 && (

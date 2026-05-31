@@ -61,6 +61,7 @@ model User {
   activities        Activity[]
   trainingLoads     TrainingLoad[]
   workoutLogs       WorkoutLog[]
+  nutritionLogs     NutritionLog[]
 }
 
 model RefreshToken {
@@ -91,6 +92,7 @@ model AthleteProfile {
   goalDate             DateTime?
   goalDetail           String?
   bmi                  Float
+  weeklyWeightGoalKg   Float?          // negative = loss (e.g. -0.5), positive = gain (e.g. 0.25)
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 }
@@ -201,6 +203,22 @@ model Meal {
   carbsG          Float
   fatG            Float
   createdAt       DateTime      @default(now())
+}
+
+model NutritionLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  mealType  String   // breakfast | lunch | dinner | snack
+  name      String
+  calories  Int
+  proteinG  Float
+  carbsG    Float
+  fatG      Float
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
 }
 
 // ─── Program Library ────────────────────────────────────────────────────────

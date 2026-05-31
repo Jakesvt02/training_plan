@@ -9,8 +9,11 @@ import type { StoredUser } from '@/lib/auth'
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: '▣' },
   { href: '/dashboard/checkin', label: 'Check-in', icon: '◎' },
+  { href: '/dashboard/plan', label: 'Plan', icon: '📅' },
   { href: '/dashboard/activities', label: 'Activities', icon: '⚡' },
   { href: '/dashboard/log', label: 'History', icon: '📋' },
+  { href: '/dashboard/measurements', label: 'Body', icon: '⚖' },
+  { href: '/dashboard/nutrition', label: 'Nutrition', icon: '🥗' },
   { href: '/dashboard/integrations', label: 'Integrations', icon: '⟳' },
   { href: '/dashboard/profile', label: 'Profile', icon: '◉' },
 ]
@@ -80,9 +83,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </main>
 
-      {/* Mobile bottom nav */}
+      {/* Mobile bottom nav — keep to 5 items max */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 border-t border-[#1E1E1E] flex" style={{ background: '#0D0D0D' }}>
-        {NAV.map(n => (
+        {NAV.filter(n => ['/dashboard', '/dashboard/checkin', '/dashboard/plan', '/dashboard/log', '/dashboard/profile'].includes(n.href)).map(n => (
           <Link
             key={n.href}
             href={n.href}

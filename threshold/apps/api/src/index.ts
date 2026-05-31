@@ -12,6 +12,9 @@ import integrationsRoutes from './routes/integrations.routes'
 import activityRoutes from './routes/activity.routes'
 import workoutLogRoutes from './routes/workout-log.routes'
 import profileRoutes from './routes/profile.routes'
+import trainingLoadRoutes from './routes/training-load.routes'
+import measurementsRoutes from './routes/measurements.routes'
+import nutritionRoutes from './routes/nutrition.routes'
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   console.error('FATAL: JWT_SECRET must be set and at least 32 characters.')
@@ -44,6 +47,9 @@ app.use('/api/integrations', integrationsRoutes)
 app.use('/api/activities', activityRoutes)
 app.use('/api/workout-logs', workoutLogRoutes)
 app.use('/api/profile', profileRoutes)
+app.use('/api/training-load', trainingLoadRoutes)
+app.use('/api/measurements', measurementsRoutes)
+app.use('/api/nutrition', nutritionRoutes)
 
 app.listen(PORT, () => {
   console.log(`Threshold API running on http://localhost:${PORT}`)
