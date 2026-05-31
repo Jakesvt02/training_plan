@@ -1,0 +1,326 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
+enum Discipline {
+  hyrox
+  powerlifting
+  bodybuilding
+  crossfit
+  running
+  cycling
+  general_fitness
+}
+
+enum ExperienceLevel {
+  beginner
+  intermediate
+  advanced
+  elite
+}
+
+enum TrainingGoal {
+  race_completion
+  race_time
+  competition
+  muscle_gain
+  fat_loss
+  recomposition
+  general_fitness
+  endurance
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  firstName    String
+  lastName     String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile           AthleteProfile?
+  bodyMeasurements  BodyMeasurement[]
+  checkIns          CheckIn[]
+  trainingPlans     TrainingPlan[]
+  deviceConnections DeviceConnection[]
+  nutritionPlans    NutritionPlan[]
+  refreshTokens     RefreshToken[]
+  activities        Activity[]
+  trainingLoads     TrainingLoad[]
+  workoutLogs       WorkoutLog[]
+  nutritionLogs     NutritionLog[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+model AthleteProfile {
+  id                   String          @id @default(uuid()) @db.Uuid
+  userId               String          @unique @db.Uuid
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gender               Gender
+  dateOfBirth          DateTime
+  heightCm             Float
+  weightKg             Float
+  primaryDiscipline    Discipline
+  secondaryDisciplines Discipline[]
+  experienceLevel      ExperienceLevel
+  trainingDaysPerWeek  Int
+  goal                 TrainingGoal
+  goalDate             DateTime?
+  goalDetail           String?
+  bmi                  Float
+  weeklyWeightGoalKg   Float?          // negative = loss (e.g. -0.5), positive = gain (e.g. 0.25)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+}
+
+model BodyMeasurement {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @default(now())
+  weightKg       Float
+  chestCm        Float?
+  waistCm        Float?
+  hipsCm         Float?
+  leftArmCm      Float?
+  rightArmCm     Float?
+  leftThighCm    Float?
+  rightThighCm   Float?
+  leftCalfCm     Float?
+  rightCalfCm    Float?
+  bmi            Float
+  bodyFatPercent Float?
+  createdAt      DateTime @default(now())
+}
+
+model CheckIn {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @default(now())
+  sleep          Int      // 1-5
+  energy         Int      // 1-5
+  motivation     Int      // 1-5
+  stress         Boolean
+  stressNote     String?
+  sorenessMap    Json     // { area: string, severity: 1|2|3 }[]
+  jointPainMap   Json?    // for strength disciplines
+  readinessScore Int      // 0-100
+  notes          String?
+  createdAt      DateTime @default(now())
+}
+
+model TrainingPlan {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @db.Uuid
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discipline  Discipline
+  startDate   DateTime
+  endDate     DateTime
+  goalJson    Json
+  phaseConfig Json
+  sessions    TrainingSession[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model TrainingSession {
+  id          String       @id @default(uuid()) @db.Uuid
+  planId      String       @db.Uuid
+  plan        TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  userId      String       @db.Uuid
+  date        DateTime
+  type        String
+  discipline  Discipline
+  plannedJson Json
+  actualJson  Json?
+  completed   Boolean      @default(false)
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model DeviceConnection {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String    // strava | polar | garmin
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime?
+  providerUserId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, provider])
+}
+
+model NutritionPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  tdee      Int
+  proteinG  Int
+  carbsG    Int
+  fatG      Int
+  meals     Meal[]
+  createdAt DateTime @default(now())
+}
+
+model Meal {
+  id              String        @id @default(uuid()) @db.Uuid
+  nutritionPlanId String        @db.Uuid
+  plan            NutritionPlan @relation(fields: [nutritionPlanId], references: [id], onDelete: Cascade)
+  type            String        // breakfast | lunch | dinner | snack | pre_workout | post_workout
+  name            String
+  calories        Int
+  proteinG        Float
+  carbsG          Float
+  fatG            Float
+  createdAt       DateTime      @default(now())
+}
+
+model NutritionLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  mealType  String   // breakfast | lunch | dinner | snack
+  name      String
+  calories  Int
+  proteinG  Float
+  carbsG    Float
+  fatG      Float
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+// ─── Program Library ────────────────────────────────────────────────────────
+
+// A week-long workout blueprint for a given discipline / phase / intensity.
+// Multiple templates per discipline allow the adaptive engine to swap weeks
+// based on training load, readiness, and HRV without rebuilding from scratch.
+model ProgramTemplate {
+  id             String           @id @default(uuid()) @db.Uuid
+  discipline     Discipline
+  name           String
+  phase          String           // base | build | peak | taper
+  intensityLevel String           // recovery | low | moderate | high | peak
+  description    String?
+  daysPerWeek    Int
+  weeklyTssTarget Int
+  sessions       ProgramSession[]
+  createdAt      DateTime         @default(now())
+
+  @@unique([discipline, phase, intensityLevel])
+  @@index([discipline, phase])
+}
+
+// One day's session within a ProgramTemplate.
+// sessionJson holds the full workout — structure varies by discipline
+// but is enforced via TypeScript types in the application layer.
+model ProgramSession {
+  id                   String          @id @default(uuid()) @db.Uuid
+  templateId           String          @db.Uuid
+  template             ProgramTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dayOfWeek            Int             // 0 = Monday … 6 = Sunday
+  sessionType          String          // run | functional | hyrox_drills | strength | rest | recovery | long_run | wod | lift
+  name                 String
+  description          String?
+  estimatedDurationMin Int
+  estimatedTss         Int
+  sessionJson          Json
+  swappableWith        String[]        // sessionType values this can swap with on low readiness
+
+  @@index([templateId])
+}
+
+// ─── Workout Log (manually logged by user) ───────────────────────────────────
+
+model WorkoutLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+  name          String?
+  sessionType   String   // run | functional | strength | hyrox_drills | etc.
+  durationMin   Int?
+  effortRating  Int?     // 1-5
+  notes         String?
+  plannedJson   Json?    // snapshot of sessionJson at time of logging
+  exercisesJson Json     // [{ name, sets: [{ reps?, weightKg?, durationSec?, distanceM?, meters?, notes? }] }]
+  tss           Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+// ─── Activity (synced from Strava / Polar / Garmin) ─────────────────────────
+
+model Activity {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // strava | polar | garmin
+  externalId     String
+  type           String   // run | ride | workout | walk | etc.
+  name           String?
+  startedAt      DateTime
+  durationSec    Int
+  distanceM      Float?
+  avgHr          Int?
+  maxHr          Int?
+  calories       Int?
+  tss            Int?     // calculated training stress score
+  elevationM     Float?
+  rawJson        Json     // full provider payload stored for reprocessing
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, externalId])
+  @@index([userId, startedAt])
+}
+
+// ─── Training Load (derived from Activities, updated after each sync) ────────
+
+model TrainingLoad {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @db.Date
+  atl            Float    // acute training load (7-day EWA)
+  ctl            Float    // chronic training load (42-day EWA)
+  tsb            Float    // training stress balance (ctl - atl)
+  dailyTss       Int      // TSS for this specific day
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
