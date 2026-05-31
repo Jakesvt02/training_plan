@@ -52,6 +52,7 @@ interface ProfileData {
     goalDate?: string | null
     goalDetail?: string | null
     weeklyWeightGoalKg?: number | null
+    currentFitnessLevel?: string | null
     bmi: number
   } | null
 }
@@ -125,6 +126,7 @@ export default function ProfilePage() {
   const [goalDetail, setGoalDetail] = useState('')
   const [discipline, setDiscipline] = useState('')
   const [weeklyWeightGoalKg, setWeeklyWeightGoalKg] = useState('')
+  const [currentFitnessLevel, setCurrentFitnessLevel] = useState('')
   const [gender, setGender] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
 
@@ -144,6 +146,7 @@ export default function ProfilePage() {
           setGoalDetail(d.profile.goalDetail ?? '')
           setDiscipline(d.profile.primaryDiscipline)
           setWeeklyWeightGoalKg(d.profile.weeklyWeightGoalKg != null ? String(d.profile.weeklyWeightGoalKg) : '')
+          setCurrentFitnessLevel(d.profile.currentFitnessLevel ?? '')
           setGender(d.profile.gender)
           setDateOfBirth(d.profile.dateOfBirth ? d.profile.dateOfBirth.split('T')[0] : '')
         }
@@ -168,6 +171,7 @@ export default function ProfilePage() {
         goalDetail: goalDetail || null,
         primaryDiscipline: discipline,
         weeklyWeightGoalKg: weeklyWeightGoalKg ? parseFloat(weeklyWeightGoalKg) : null,
+        currentFitnessLevel: currentFitnessLevel || null,
         gender: gender || undefined,
         dateOfBirth: dateOfBirth || undefined,
       })
@@ -278,6 +282,20 @@ export default function ProfilePage() {
                 <Field label="Experience Level">
                   <Select value={experienceLevel} onChange={setExperienceLevel} options={EXPERIENCE_LEVELS} />
                 </Field>
+                <Field label="Current Fitness Level">
+                  <Select
+                    value={currentFitnessLevel}
+                    onChange={setCurrentFitnessLevel}
+                    options={[
+                      { value: 'deconditioned', label: 'Deconditioned' },
+                      { value: 'fair', label: 'Fair' },
+                      { value: 'good', label: 'Good' },
+                      { value: 'excellent', label: 'Excellent' },
+                    ]}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Training Days / Week">
                   <Select
                     value={trainingDays}

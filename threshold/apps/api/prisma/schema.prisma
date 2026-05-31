@@ -92,6 +92,7 @@ model AthleteProfile {
   goalDate             DateTime?
   goalDetail           String?
   bmi                  Float
+  currentFitnessLevel  String?  // deconditioned | fair | good | excellent
   weeklyWeightGoalKg   Float?          // negative = loss (e.g. -0.5), positive = gain (e.g. 0.25)
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
