@@ -270,6 +270,20 @@ export default function RegisterPage() {
                     ]}
                   />
                   <Select
+                    label="Current fitness level"
+                    value={(form as Record<string, unknown>).currentFitnessLevel as string || ''}
+                    onChange={e => set('currentFitnessLevel' as keyof typeof form, e.target.value)}
+                    placeholder="How fit are you now?"
+                    options={[
+                      { value: 'deconditioned', label: 'Deconditioned — returning from break/injury' },
+                      { value: 'fair', label: 'Fair — training inconsistently' },
+                      { value: 'good', label: 'Good — training regularly' },
+                      { value: 'excellent', label: 'Excellent — peak condition' },
+                    ]}
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Select
                     label="Training days / week"
                     value={form.trainingDaysPerWeek?.toString() || ''}
                     onChange={e => set('trainingDaysPerWeek', parseInt(e.target.value))}
@@ -354,7 +368,7 @@ export default function RegisterPage() {
           <button
             onClick={isLastStep ? submit : next}
             disabled={loading}
-            className="flex-1 h-12 rounded-xl font-bold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 h-12 rounded-xl font-bold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
             style={{ background: 'linear-gradient(135deg, #FF3B30, #FF8C00)' }}
           >
             {loading && (

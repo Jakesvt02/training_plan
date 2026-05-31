@@ -29,6 +29,7 @@ export async function registerUser(data: RegisterPayload): Promise<AuthResponse>
           primaryDiscipline: data.primaryDiscipline,
           secondaryDisciplines: data.secondaryDisciplines ?? [],
           experienceLevel: data.experienceLevel,
+          currentFitnessLevel: (data as unknown as Record<string, unknown>).currentFitnessLevel as string ?? null,
           trainingDaysPerWeek: data.trainingDaysPerWeek,
           goal: data.goal,
           goalDate: data.goalDate ? new Date(data.goalDate) : undefined,
