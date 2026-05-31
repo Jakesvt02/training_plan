@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { apiGet, apiPost } from '@/lib/api'
+import { apiGet, apiPost, apiPut } from '@/lib/api'
 import { ActivityCard } from '@/components/activity-card'
 import TrainingLoadChart from '@/components/TrainingLoadChart'
 import type { WeeklyPlanResponse, SessionPlan, Activity, LogExercise, LogSet } from '@threshold/shared'
@@ -323,16 +323,20 @@ function SetRow({ set, setNum, onChange, onRemove }: {
   )
 }
 
+const EFFORT_COLORS = ['', '#4CAF50', '#8BC34A', '#FF8C00', '#FF6B00', '#FF3B30']
+
 function WorkoutModal({ session, onClose, onSaved }: {
   session: SessionPlan
   onClose: () => void
   onSaved: () => void
 }) {
   const [tab, setTab] = useState<'plan' | 'log'>('plan')
+  const [step, setStep] = useState<'log' | 'notes'>('log')
   const [exercises, setExercises] = useState<LogExercise[]>(() => extractExercises(session.sessionJson))
   const [durationMin, setDurationMin] = useState(session.estimatedDurationMin.toString())
   const [effortRating, setEffortRating] = useState(0)
   const [notes, setNotes] = useState('')
+  const [loggedId, setLoggedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [mounted, setMounted] = useState(false)
@@ -371,16 +375,15 @@ function WorkoutModal({ session, onClose, onSaved }: {
     setError('')
     setSaving(true)
     try {
-      await apiPost('/api/workout-logs', {
+      const result = await apiPost<{ id: string }>('/api/workout-logs', {
         sessionType: session.sessionType,
         name: session.name,
         durationMin: durationMin ? parseInt(durationMin) : undefined,
-        effortRating: effortRating || undefined,
-        notes: notes || undefined,
         plannedJson: session.sessionJson,
         exercisesJson: exercises.filter(ex => ex.name),
       })
-      onSaved()
+      setLoggedId(result.id)
+      setStep('notes')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
@@ -388,7 +391,73 @@ function WorkoutModal({ session, onClose, onSaved }: {
     }
   }
 
+  async function saveNotes() {
+    if (loggedId && (effortRating || notes)) {
+      try {
+        await apiPut(`/api/workout-logs/${loggedId}`, {
+          effortRating: effortRating || null,
+          notes: notes || null,
+        })
+      } catch { /* non-critical */ }
+    }
+    onSaved()
+  }
+
   if (!mounted) return null
+
+  // Post-save notes step
+  if (step === 'notes') return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.85)' }}>
+      <div className="mt-auto w-full rounded-t-3xl flex flex-col p-6 space-y-5" style={{ background: '#111' }}>
+        <div className="flex justify-center"><div className="w-10 h-1 rounded-full bg-gray-700" /></div>
+        <div className="text-center">
+          <div className="text-3xl mb-2">🏁</div>
+          <h2 className="text-xl font-black text-white">Workout logged!</h2>
+          <p className="text-sm text-gray-400 mt-1">How did <span className="text-white">{session.name}</span> feel?</p>
+        </div>
+
+        {/* Effort */}
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button key={n} onClick={() => setEffortRating(n)}
+              className="flex-1 py-3 rounded-xl text-sm font-black transition cursor-pointer"
+              style={{
+                background: effortRating === n ? EFFORT_COLORS[n] + '33' : '#1E1E1E',
+                border: `1px solid ${effortRating === n ? EFFORT_COLORS[n] : '#2A2A2A'}`,
+                color: effortRating === n ? EFFORT_COLORS[n] : '#6B7280',
+              }}>
+              {n}
+            </button>
+          ))}
+        </div>
+        {effortRating > 0 && (
+          <p className="text-sm text-center font-semibold -mt-2" style={{ color: EFFORT_COLORS[effortRating] }}>
+            {EFFORT_LABELS[effortRating]}
+          </p>
+        )}
+
+        {/* Notes */}
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Any notes? What went well, what was hard, anything to remember next time..."
+          rows={3}
+          maxLength={1000}
+          className="w-full px-4 py-3 rounded-xl text-sm bg-[#1A1A1A] border border-[#2A2A2A] text-white placeholder-gray-600 focus:outline-none focus:border-[#FF3B30] resize-none transition"
+        />
+
+        <div className="flex gap-3">
+          <button onClick={saveNotes}
+            className="flex-1 h-12 rounded-xl font-bold text-white cursor-pointer hover:opacity-90 transition"
+            style={{ background: 'linear-gradient(135deg, #FF3B30, #FF8C00)' }}>
+            {effortRating || notes ? 'Save & Close' : 'Skip'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={onClose}>
       <div
