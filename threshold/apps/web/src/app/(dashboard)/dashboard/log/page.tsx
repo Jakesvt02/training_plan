@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { apiGet, apiDelete } from '@/lib/api'
+import { apiGet, apiDelete, apiPut } from '@/lib/api'
 import type { WorkoutLog, WorkoutLogsResponse, LogExercise } from '@threshold/shared'
 
 const EFFORT_LABELS = ['', 'Very Easy', 'Easy', 'Moderate', 'Hard', 'Max Effort']
@@ -112,9 +112,13 @@ function LoggedExercises({ exercises }: { exercises: LogExercise[] }) {
 
 // ─── Log entry card ───────────────────────────────────────────────────────────
 
-function LogCard({ log, onDelete }: { log: WorkoutLog; onDelete: (id: string) => void }) {
+function LogCard({ log, onDelete, onUpdate }: { log: WorkoutLog; onDelete: (id: string) => void; onUpdate: (updated: WorkoutLog) => void }) {
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [noteText, setNoteText] = useState(log.notes ?? '')
+  const [editEffort, setEditEffort] = useState(log.effortRating ?? 0)
+  const [saving, setSaving] = useState(false)
 
   const exercises = log.exercisesJson as LogExercise[]
   const dateStr = new Date(log.date).toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })
@@ -129,6 +133,20 @@ function LogCard({ log, onDelete }: { log: WorkoutLog; onDelete: (id: string) =>
       onDelete(log.id)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function saveNotes() {
+    setSaving(true)
+    try {
+      const updated = await apiPut<WorkoutLog>(`/api/workout-logs/${log.id}`, {
+        notes: noteText || null,
+        effortRating: editEffort || null,
+      })
+      onUpdate(updated)
+      setEditingNotes(false)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -180,21 +198,76 @@ function LogCard({ log, onDelete }: { log: WorkoutLog; onDelete: (id: string) =>
                 <p className="text-xs text-gray-400 mb-2">{log.durationMin} min{effort > 0 ? ` · ${EFFORT_LABELS[effort]}` : ''}</p>
               )}
               <LoggedExercises exercises={exercises} />
-              {log.notes && (
+              {log.notes && !editingNotes && (
                 <p className="text-xs text-gray-500 mt-3 italic">"{log.notes}"</p>
               )}
             </div>
           </div>
 
-          <div className="px-4 py-3 border-t border-[#1E1E1E] flex justify-end">
-            <button
-              onClick={del}
-              disabled={deleting}
-              className="text-xs text-gray-600 hover:text-red-400 transition cursor-pointer"
-            >
-              {deleting ? 'Deleting...' : 'Delete log'}
-            </button>
-          </div>
+          {/* Notes editor */}
+          {editingNotes ? (
+            <div className="px-4 py-4 border-t border-[#1E1E1E] space-y-3">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Training Notes</p>
+
+              {/* Effort rating */}
+              <div>
+                <p className="text-xs text-gray-400 mb-2">How did it feel?</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setEditEffort(n)}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
+                      style={{
+                        background: editEffort === n ? EFFORT_COLORS[n] + '33' : '#1E1E1E',
+                        border: `1px solid ${editEffort === n ? EFFORT_COLORS[n] : '#2A2A2A'}`,
+                        color: editEffort === n ? EFFORT_COLORS[n] : '#6B7280',
+                      }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {editEffort > 0 && (
+                  <p className="text-xs mt-1" style={{ color: EFFORT_COLORS[editEffort] }}>{EFFORT_LABELS[editEffort]}</p>
+                )}
+              </div>
+
+              <textarea
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                placeholder="How did the session go? What felt good, what was hard, anything to note for next time..."
+                rows={3}
+                maxLength={1000}
+                className="w-full px-3 py-2 rounded-xl text-sm bg-[#1A1A1A] border border-[#2A2A2A] text-white placeholder-gray-600 focus:outline-none focus:border-[#FF3B30] resize-none transition"
+              />
+              <div className="flex gap-2">
+                <button onClick={saveNotes} disabled={saving}
+                  className="flex-1 h-9 rounded-xl text-sm font-bold text-white cursor-pointer hover:opacity-90 disabled:opacity-50 transition"
+                  style={{ background: 'linear-gradient(135deg, #FF3B30, #FF8C00)' }}>
+                  {saving ? 'Saving...' : 'Save Notes'}
+                </button>
+                <button onClick={() => { setEditingNotes(false); setNoteText(log.notes ?? ''); setEditEffort(log.effortRating ?? 0) }}
+                  className="px-4 h-9 rounded-xl text-sm text-gray-400 cursor-pointer hover:text-white transition"
+                  style={{ background: '#1E1E1E', border: '1px solid #2A2A2A' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-3 border-t border-[#1E1E1E] flex items-center justify-between">
+              <button
+                onClick={() => setEditingNotes(true)}
+                className="text-xs text-gray-500 hover:text-[#FF8C00] transition cursor-pointer"
+              >
+                {log.notes ? '✏️ Edit notes' : '+ Add training notes'}
+              </button>
+              <button onClick={del} disabled={deleting}
+                className="text-xs text-gray-600 hover:text-red-400 transition cursor-pointer">
+                {deleting ? 'Deleting...' : 'Delete log'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -224,6 +297,10 @@ export default function WorkoutHistoryPage() {
     setData(prev => prev ? { ...prev, logs: prev.logs.filter(l => l.id !== id), total: prev.total - 1 } : prev)
   }
 
+  function handleUpdate(updated: WorkoutLog) {
+    setData(prev => prev ? { ...prev, logs: prev.logs.map(l => l.id === updated.id ? updated : l) } : prev)
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -251,7 +328,7 @@ export default function WorkoutHistoryPage() {
         <>
           <div className="space-y-3">
             {data.logs.map(log => (
-              <LogCard key={log.id} log={log} onDelete={handleDelete} />
+              <LogCard key={log.id} log={log} onDelete={handleDelete} onUpdate={handleUpdate} />
             ))}
           </div>
 
