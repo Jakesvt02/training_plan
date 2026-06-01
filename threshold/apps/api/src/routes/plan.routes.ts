@@ -130,29 +130,54 @@ router.get('/horizon', requireAuth, async (req: AuthRequest, res) => {
       byPhase[phase].sort((a, b) => INTENSITY_ORDER.indexOf(a.intensityLevel) - INTENSITY_ORDER.indexOf(b.intensityLevel))
     }
 
+    // Load all overrides for this user across all weeks
+    const allOverrides = await prisma.sessionOverride.findMany({ where: { userId } })
+    const overrideMap = new Map(allOverrides.map(o => [`${o.weekStart}:${o.dayOfWeek}`, o]))
+
     // Assign a template to each week — cycle through intensities within the phase
-    // so weeks build up: low → moderate → high → moderate → ...
     const weekPhaseCount: Record<string, number> = {}
     const weeksWithTemplate = weeks.map(w => {
       const phaseTemplates = byPhase[w.phase] ?? []
       const idx = weekPhaseCount[w.phase] ?? 0
-      // Pattern: low, moderate, high, moderate, low, moderate, high... (deload every 4th)
       const PATTERN = [0, 1, Math.min(2, phaseTemplates.length - 1), 1]
       const template = phaseTemplates[PATTERN[idx % PATTERN.length]]
       weekPhaseCount[w.phase] = idx + 1
+
+      const baseSessions = template?.sessions.map(s => ({
+        dayOfWeek: s.dayOfWeek,
+        name: s.name,
+        sessionType: s.sessionType,
+        durationMin: s.estimatedDurationMin,
+        tss: s.estimatedTss,
+        sessionJson: s.sessionJson,
+        override: null as null | { action: string; reason?: string | null },
+      })) ?? []
+
+      // Apply overrides
+      const sessions = baseSessions.map(s => {
+        const ov = overrideMap.get(`${w.weekStart}:${s.dayOfWeek}`)
+        if (!ov) return s
+
+        if (ov.action === 'skip') {
+          return { ...s, name: 'Rest (skipped)', sessionType: 'rest', durationMin: 0, tss: 0, sessionJson: { type: 'rest' }, override: { action: 'skip', reason: ov.reason } }
+        }
+        if (ov.action === 'swap' && ov.swapType) {
+          return { ...s, name: ov.swapName ?? s.name, sessionType: ov.swapType, durationMin: ov.swapDurationMin ?? s.durationMin, tss: 0, sessionJson: ov.swapJson ?? s.sessionJson, override: { action: 'swap', reason: ov.reason } }
+        }
+        if (ov.action === 'custom' && ov.customType) {
+          return { ...s, name: ov.customName ?? 'Custom session', sessionType: ov.customType, durationMin: ov.customDurationMin ?? s.durationMin, tss: 0, sessionJson: ov.customJson ?? {}, override: { action: 'custom', reason: ov.reason } }
+        }
+        if (ov.action === 'move' && ov.moveToDay != null) {
+          return { ...s, override: { action: 'move', reason: `Moved to ${ov.moveToDay}` } }
+        }
+        return s
+      })
 
       return {
         ...w,
         intensityLevel: template?.intensityLevel ?? 'moderate',
         weekInPhase: idx + 1,
-        sessions: template?.sessions.map(s => ({
-          dayOfWeek: s.dayOfWeek,
-          name: s.name,
-          sessionType: s.sessionType,
-          durationMin: s.estimatedDurationMin,
-          tss: s.estimatedTss,
-          sessionJson: s.sessionJson,
-        })) ?? [],
+        sessions,
       }
     })
 
@@ -180,6 +205,114 @@ router.get('/templates', requireAuth, async (_req, res) => {
     })
     res.json({ success: true, data: templates })
   } catch {
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+// Equipment required per session type — used to filter alternatives
+const EQUIPMENT_MAP: Record<string, string[]> = {
+  strength:     ['barbell', 'dumbbells'],
+  lift:         ['barbell', 'dumbbells'],
+  hyrox_drills: ['rowing_machine', 'ski_erg', 'sled'],
+  run:          [],
+  long_run:     [],
+  functional:   [],
+  wod:          [],
+  recovery:     [],
+  rest:         [],
+  ride:         [],
+}
+
+function sessionFitsEquipment(sessionType: string, available: string[]): boolean {
+  if (available.length === 0) return true // no restriction set
+  const needed = EQUIPMENT_MAP[sessionType] ?? []
+  return needed.every(eq => available.includes(eq))
+}
+
+// GET /api/plan/alternatives — swap options for a given session type
+router.get('/alternatives', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const { sessionType } = req.query as { sessionType: string }
+
+    const profile = await prisma.athleteProfile.findUnique({ where: { userId } })
+    if (!profile) return res.status(404).json({ success: false, error: 'No profile' })
+
+    const equipment = profile.availableEquipment ?? []
+
+    // Find one example session of this type to get its swappableWith list
+    const sourceSession = await prisma.programSession.findFirst({
+      where: { sessionType, template: { discipline: profile.primaryDiscipline as Discipline } },
+    })
+
+    const swappableTypes = sourceSession?.swappableWith ?? []
+    // Always allow recovery/rest as a fallback swap
+    const candidateTypes = [...new Set([...swappableTypes, 'recovery', 'rest'])]
+
+    // Pull one representative session per type from the same discipline
+    const alternatives: { sessionType: string; name: string; durationMin: number; tss: number; sessionJson: unknown }[] = []
+
+    for (const type of candidateTypes) {
+      if (type === sessionType) continue
+      if (!sessionFitsEquipment(type, equipment)) continue
+
+      const session = await prisma.programSession.findFirst({
+        where: { sessionType: type, template: { discipline: profile.primaryDiscipline as Discipline } },
+        include: { template: { select: { intensityLevel: true } } },
+      })
+      if (!session) continue
+
+      alternatives.push({
+        sessionType: session.sessionType,
+        name: session.name,
+        durationMin: session.estimatedDurationMin,
+        tss: session.estimatedTss,
+        sessionJson: session.sessionJson,
+      })
+    }
+
+    res.json({ success: true, data: alternatives })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+// POST /api/plan/override — upsert a session override
+router.post('/override', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const {
+      weekStart, dayOfWeek, action,
+      swapName, swapType, swapDurationMin, swapJson,
+      moveToDay,
+      customName, customType, customDurationMin, customJson,
+      reason,
+    } = req.body
+
+    const override = await prisma.sessionOverride.upsert({
+      where: { userId_weekStart_dayOfWeek: { userId, weekStart, dayOfWeek } },
+      create: { userId, weekStart, dayOfWeek, action, swapName, swapType, swapDurationMin, swapJson, moveToDay, customName, customType, customDurationMin, customJson, reason },
+      update: { action, swapName, swapType, swapDurationMin, swapJson, moveToDay, customName, customType, customDurationMin, customJson, reason },
+    })
+
+    res.json({ success: true, data: override })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/plan/override — remove an override
+router.delete('/override', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const { weekStart, dayOfWeek } = req.body
+
+    await prisma.sessionOverride.deleteMany({ where: { userId, weekStart, dayOfWeek } })
+    res.json({ success: true })
+  } catch (err) {
+    console.error(err)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })

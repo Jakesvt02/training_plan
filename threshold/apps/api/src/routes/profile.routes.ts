@@ -28,6 +28,7 @@ router.put('/', requireAuth, async (req: AuthRequest, res: Response) => {
     goal, goalDate, goalDetail,
     primaryDiscipline, weeklyWeightGoalKg,
     gender, dateOfBirth, currentFitnessLevel,
+    availableEquipment,
   } = req.body
 
   const userUpdate: Record<string, unknown> = {}
@@ -47,6 +48,7 @@ router.put('/', requireAuth, async (req: AuthRequest, res: Response) => {
   if (gender) profileUpdate.gender = gender
   if (dateOfBirth) profileUpdate.dateOfBirth = new Date(dateOfBirth)
   if (currentFitnessLevel !== undefined) profileUpdate.currentFitnessLevel = currentFitnessLevel || null
+  if (availableEquipment !== undefined) profileUpdate.availableEquipment = Array.isArray(availableEquipment) ? availableEquipment : []
 
   // Recalculate BMI if weight or height changed
   if (profileUpdate.weightKg || profileUpdate.heightCm) {

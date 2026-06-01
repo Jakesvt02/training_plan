@@ -53,6 +53,7 @@ interface ProfileData {
     goalDetail?: string | null
     weeklyWeightGoalKg?: number | null
     currentFitnessLevel?: string | null
+    availableEquipment?: string[]
     bmi: number
   } | null
 }
@@ -129,6 +130,7 @@ export default function ProfilePage() {
   const [currentFitnessLevel, setCurrentFitnessLevel] = useState('')
   const [gender, setGender] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
+  const [availableEquipment, setAvailableEquipment] = useState<string[]>([])
 
   useEffect(() => {
     apiGet<ProfileData>('/api/profile')
@@ -149,6 +151,7 @@ export default function ProfilePage() {
           setCurrentFitnessLevel(d.profile.currentFitnessLevel ?? '')
           setGender(d.profile.gender)
           setDateOfBirth(d.profile.dateOfBirth ? d.profile.dateOfBirth.split('T')[0] : '')
+          setAvailableEquipment(d.profile.availableEquipment ?? [])
         }
       })
       .catch(() => setError('Failed to load profile'))
@@ -174,6 +177,7 @@ export default function ProfilePage() {
         currentFitnessLevel: currentFitnessLevel || null,
         gender: gender || undefined,
         dateOfBirth: dateOfBirth || undefined,
+        availableEquipment,
       })
       setData(result)
       // Update the name shown in the nav
@@ -304,6 +308,44 @@ export default function ProfilePage() {
                   />
                 </Field>
               </div>
+              <Field label="Available Equipment">
+                <p className="text-xs text-gray-500 mb-2">Used to suggest workout alternatives that match your setup</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'barbell', label: 'Barbell' },
+                    { value: 'dumbbells', label: 'Dumbbells' },
+                    { value: 'kettlebell', label: 'Kettlebell' },
+                    { value: 'pull_up_bar', label: 'Pull-up Bar' },
+                    { value: 'bench', label: 'Bench' },
+                    { value: 'cables', label: 'Cables' },
+                    { value: 'rowing_machine', label: 'Rowing Machine' },
+                    { value: 'ski_erg', label: 'Ski Erg' },
+                    { value: 'sled', label: 'Sled' },
+                    { value: 'assault_bike', label: 'Assault Bike' },
+                    { value: 'treadmill', label: 'Treadmill' },
+                    { value: 'resistance_bands', label: 'Resistance Bands' },
+                  ].map(eq => {
+                    const active = availableEquipment.includes(eq.value)
+                    return (
+                      <button
+                        key={eq.value}
+                        type="button"
+                        onClick={() => setAvailableEquipment(prev =>
+                          active ? prev.filter(e => e !== eq.value) : [...prev, eq.value]
+                        )}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
+                        style={{
+                          background: active ? 'linear-gradient(135deg, #FF3B30, #FF8C00)' : '#1A1A1A',
+                          color: active ? '#fff' : '#9CA3AF',
+                          border: `1px solid ${active ? 'transparent' : '#2A2A2A'}`,
+                        }}
+                      >
+                        {eq.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </Field>
             </Section>
           </div>
 
