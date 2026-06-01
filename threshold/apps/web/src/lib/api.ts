@@ -61,8 +61,9 @@ export async function apiRequest<T>(
     }
   }
 
-  // If still 401 after refresh attempt, session is dead — boot to login
-  if (res.status === 401) {
+  // If still 401 after refresh attempt on a protected route, session is dead — boot to login
+  // Skip this for auth endpoints themselves (login/register) — their 401 = wrong credentials
+  if (res.status === 401 && !path.startsWith('/api/auth/')) {
     clearAuth()
     window.location.href = '/login'
     throw new Error('Session expired')
