@@ -29,8 +29,8 @@ router.post(
     body('stress').isBoolean(),
     body('sorenessMap').isArray(),
     body('jointPainMap').optional().isArray(),
-    body('stressNote').optional().isString().trim().isLength({ max: 500 }),
-    body('notes').optional().isString().trim().isLength({ max: 1000 }),
+    body('stressNote').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
+    body('notes').optional({ nullable: true }).isString().trim().isLength({ max: 1000 }),
   ],
   async (req: AuthRequest, res: Response) => {
     const errors = validationResult(req)
