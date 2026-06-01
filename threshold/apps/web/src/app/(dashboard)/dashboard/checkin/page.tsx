@@ -449,9 +449,10 @@ export default function CheckInPage() {
                     <Tooltip
                       contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 12, fontSize: 12 }}
                       labelStyle={{ color: '#fff', fontWeight: 700 }}
-                      formatter={(value: number, name: string) => {
-                        if (name !== 'Readiness') return [`${Math.round(value / 20)}/5`, name]
-                        return [value, name]
+                      formatter={(value, name) => {
+                        const v = typeof value === 'number' ? value : 0
+                        if (name !== 'Readiness') return [`${Math.round(v / 20)}/5`, name]
+                        return [v, name]
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
