@@ -360,7 +360,7 @@ export default function RegisterPage() {
           {step > 1 && (
             <button
               onClick={back}
-              className="flex-shrink-0 w-12 h-12 rounded-xl border border-[#3A3A3A] text-gray-400 hover:border-[#FF3B30] hover:text-white transition flex items-center justify-center text-lg"
+              className="flex-shrink-0 w-12 h-12 rounded-xl border border-[#3A3A3A] text-gray-400 hover:border-[#FF3B30] hover:text-white transition flex items-center justify-center text-lg cursor-pointer"
             >
               ←
             </button>

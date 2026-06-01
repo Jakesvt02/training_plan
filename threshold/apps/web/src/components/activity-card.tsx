@@ -51,7 +51,10 @@ function formatDistance(m: number): string {
 function formatDate(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
+  // Compare local calendar dates so a workout done at 9pm yesterday isn't "Today"
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diffDays = Math.round((nowDay.getTime() - dDay.getTime()) / 86400000)
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
   if (diffDays < 7) return `${diffDays} days ago`
@@ -75,7 +78,10 @@ export function ActivityCard({ activity, compact = false }: { activity: Activity
         </div>
         <div className="text-right flex-shrink-0">
           {activity.tss != null && (
-            <div className="text-sm font-bold" style={{ color }} title="Training Stress Score — 100 = 1 hour at threshold effort">{activity.tss} <span className="text-xs font-normal text-gray-500">TSS</span></div>
+            <div>
+              <div className="text-sm font-bold" style={{ color }}>{activity.tss} <span className="text-xs font-normal text-gray-500">TSS</span></div>
+              <div className="text-[9px] text-gray-600 leading-tight">Training Stress</div>
+            </div>
           )}
           {activity.avgHr && <div className="text-xs text-gray-500">{activity.avgHr} bpm</div>}
         </div>
@@ -95,12 +101,6 @@ export function ActivityCard({ activity, compact = false }: { activity: Activity
               <p className="font-semibold text-white">{activity.name || typeName}</p>
               <p className="text-xs text-gray-500 mt-0.5">{formatDate(activity.startedAt)} · <span style={{ color }} className="font-medium">{typeName}</span> · {activity.provider}</p>
             </div>
-            {activity.tss != null && (
-              <div className="text-right flex-shrink-0" title="Training Stress Score — 100 = 1 hour at threshold effort">
-                <div className="text-lg font-black" style={{ color }}>{activity.tss}</div>
-                <div className="text-[10px] text-gray-500 uppercase tracking-wide">TSS</div>
-              </div>
-            )}
           </div>
 
           <div className="flex flex-wrap gap-3 mt-3">
@@ -110,6 +110,7 @@ export function ActivityCard({ activity, compact = false }: { activity: Activity
             {activity.maxHr != null && <Stat label="Max HR" value={`${activity.maxHr} bpm`} />}
             {activity.calories != null && <Stat label="Calories" value={`${activity.calories} kcal`} />}
             {activity.elevationM != null && activity.elevationM > 0 && <Stat label="Elevation" value={`${Math.round(activity.elevationM)} m`} />}
+            {activity.tss != null && <Stat label="Training Stress" value={String(activity.tss)} color={color} />}
           </div>
         </div>
       </div>
@@ -117,11 +118,11 @@ export function ActivityCard({ activity, compact = false }: { activity: Activity
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div>
       <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-sm font-semibold text-white">{value}</div>
+      <div className="text-sm font-semibold" style={{ color: color ?? '#F5F5F5' }}>{value}</div>
     </div>
   )
 }

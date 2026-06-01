@@ -48,6 +48,13 @@ export async function apiRequest<T>(
     }
   }
 
+  // If still 401 after refresh attempt, session is dead — boot to login
+  if (res.status === 401) {
+    clearAuth()
+    window.location.href = '/login'
+    throw new Error('Session expired')
+  }
+
   const data = await res.json()
   if (!res.ok || !data.success) {
     const err = new Error(data.error || 'Request failed') as Error & {
