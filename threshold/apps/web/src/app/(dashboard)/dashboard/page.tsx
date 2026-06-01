@@ -682,7 +682,8 @@ function SessionCard({ session, onStart }: { session: SessionPlan; onStart: (s: 
         {!isRest && (
           <div className="text-right flex-shrink-0">
             <div className="text-sm font-bold text-white">{session.estimatedDurationMin} min</div>
-            <div className="text-xs text-gray-500 mt-0.5" title="Training Stress Score — 100 = 1 hour at threshold effort">TSS {session.estimatedTss}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{session.estimatedTss} TSS</div>
+            <div className="text-[9px] text-gray-600 leading-tight">stress score</div>
           </div>
         )}
       </div>
@@ -847,9 +848,10 @@ export default function DashboardPage() {
             <div className="text-xl font-black text-white">{activeSessions.length}</div>
             <div className="text-[11px] text-gray-500 mt-0.5">Sessions</div>
           </div>
-          <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }} title="Training Stress Score — total weekly training load. 100 TSS ≈ 1 hour at threshold effort.">
+          <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }}>
             <div className="text-xl font-black text-white">{weeklyPlan.weeklyTssTarget}</div>
             <div className="text-[11px] text-gray-500 mt-0.5">Target TSS</div>
+            <div className="text-[9px] text-gray-600 mt-0.5 leading-tight">Training Stress Score</div>
           </div>
           <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }} title="Total planned training time this week">
             <div className="text-xl font-black text-white">{totalMinutes}m</div>
