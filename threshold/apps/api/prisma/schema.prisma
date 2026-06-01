@@ -62,6 +62,7 @@ model User {
   trainingLoads     TrainingLoad[]
   workoutLogs       WorkoutLog[]
   nutritionLogs     NutritionLog[]
+  sessionOverrides  SessionOverride[]
 }
 
 model RefreshToken {
@@ -92,8 +93,9 @@ model AthleteProfile {
   goalDate             DateTime?
   goalDetail           String?
   bmi                  Float
-  currentFitnessLevel  String?  // deconditioned | fair | good | excellent
+  currentFitnessLevel  String?         // deconditioned | fair | good | excellent
   weeklyWeightGoalKg   Float?          // negative = loss (e.g. -0.5), positive = gain (e.g. 0.25)
+  availableEquipment   String[]        // barbell | dumbbells | kettlebell | pull_up_bar | bench | rowing_machine | ski_erg | sled | assault_bike | treadmill | resistance_bands | cables
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 }
@@ -220,6 +222,35 @@ model NutritionLog {
   createdAt DateTime @default(now())
 
   @@index([userId, date])
+}
+
+// ─── Session Overrides (user-driven plan changes) ───────────────────────────
+
+model SessionOverride {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart         String   // YYYY-MM-DD of Monday for that week
+  dayOfWeek         Int      // 1-7 matching ProgramSession.dayOfWeek
+  action            String   // skip | swap | move | custom
+  // swap: replacement session data
+  swapName          String?
+  swapType          String?
+  swapDurationMin   Int?
+  swapJson          Json?
+  // move: target day
+  moveToDay         Int?
+  // custom: user-defined session
+  customName        String?
+  customType        String?
+  customDurationMin Int?
+  customJson        Json?
+  reason            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, weekStart, dayOfWeek])
+  @@index([userId, weekStart])
 }
 
 // ─── Program Library ────────────────────────────────────────────────────────

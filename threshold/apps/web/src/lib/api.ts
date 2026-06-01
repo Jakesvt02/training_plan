@@ -2,24 +2,37 @@ import { getAccessToken, getRefreshToken, updateAccessToken, clearAuth } from '.
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4003'
 
+// Mutex — prevents concurrent requests from each triggering their own refresh
+let refreshPromise: Promise<string | null> | null = null
+
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) return null
+  if (refreshPromise) return refreshPromise
 
-  const res = await fetch(`${API_URL}/api/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  })
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) return null
 
-  if (!res.ok) {
-    clearAuth()
-    return null
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+
+    if (!res.ok) {
+      clearAuth()
+      return null
+    }
+
+    const data = await res.json()
+    updateAccessToken(data.data.accessToken, data.data.refreshToken)
+    return data.data.accessToken
+  })()
+
+  try {
+    return await refreshPromise
+  } finally {
+    refreshPromise = null
   }
-
-  const data = await res.json()
-  updateAccessToken(data.data.accessToken, data.data.refreshToken)
-  return data.data.accessToken
 }
 
 export async function apiRequest<T>(
@@ -78,8 +91,11 @@ export function apiGet<T>(path: string): Promise<T> {
   return apiRequest<T>(path, { method: 'GET' })
 }
 
-export function apiDelete<T>(path: string): Promise<T> {
-  return apiRequest<T>(path, { method: 'DELETE' })
+export function apiDelete<T>(path: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(path, {
+    method: 'DELETE',
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  })
 }
 
 export function apiPut<T>(path: string, body: unknown): Promise<T> {

@@ -330,6 +330,29 @@ export default function RegisterPage() {
                     hint="We'll count back from this date to structure your phases"
                   />
                 )}
+
+                {(form.goal === 'fat_loss' || form.goal === 'recomposition' || form.goal === 'muscle_gain') && (
+                  <Select
+                    label="Weekly weight goal"
+                    value={(form as Record<string, unknown>).weeklyWeightGoalKg?.toString() || '0'}
+                    onChange={e => set('weeklyWeightGoalKg' as keyof typeof form, parseFloat(e.target.value))}
+                    hint={(() => {
+                      const v = parseFloat((form as Record<string, unknown>).weeklyWeightGoalKg?.toString() || '0')
+                      if (v === 0) return undefined
+                      const kcal = Math.abs(Math.round(v * 7700 / 7))
+                      return v < 0 ? `${kcal} kcal/day deficit applied in Nutrition` : `${kcal} kcal/day surplus applied in Nutrition`
+                    })()}
+                    options={[
+                      { value: '-1',    label: 'Lose 1 kg / week (aggressive)' },
+                      { value: '-0.75', label: 'Lose 0.75 kg / week' },
+                      { value: '-0.5',  label: 'Lose 0.5 kg / week (recommended)' },
+                      { value: '-0.25', label: 'Lose 0.25 kg / week (slow cut)' },
+                      { value: '0',     label: 'Maintain weight' },
+                      { value: '0.25',  label: 'Gain 0.25 kg / week (lean bulk)' },
+                      { value: '0.5',   label: 'Gain 0.5 kg / week' },
+                    ]}
+                  />
+                )}
                 <div>
                   <label className="text-sm font-medium text-gray-300 block mb-1.5">
                     Goal detail <span className="text-gray-500 font-normal">(optional)</span>

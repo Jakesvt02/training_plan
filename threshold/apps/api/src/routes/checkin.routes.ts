@@ -70,14 +70,71 @@ router.get('/latest', requireAuth, async (req: AuthRequest, res) => {
   res.json({ success: true, data: checkIn ?? null })
 })
 
-// GET /api/checkin — last 30 check-ins
+// GET /api/checkin?from=YYYY-MM-DD&to=YYYY-MM-DD — paginated check-in history
 router.get('/', requireAuth, async (req: AuthRequest, res) => {
+  const { from, to } = req.query as { from?: string; to?: string }
   const checkIns = await prisma.checkIn.findMany({
-    where: { userId: req.userId! },
-    orderBy: { date: 'desc' },
-    take: 30,
+    where: {
+      userId: req.userId!,
+      ...(from || to ? {
+        date: {
+          ...(from ? { gte: new Date(from) } : {}),
+          ...(to   ? { lte: new Date(to + 'T23:59:59Z') } : {}),
+        },
+      } : {}),
+    },
+    orderBy: { date: 'asc' },
+    take: 180,
   })
   res.json({ success: true, data: checkIns })
+})
+
+// PUT /api/checkin/:id — edit a check-in
+router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { id } = req.params
+  const existing = await prisma.checkIn.findUnique({ where: { id } })
+  if (!existing || existing.userId !== req.userId) {
+    res.status(404).json({ success: false, error: 'Check-in not found' })
+    return
+  }
+
+  const { sleep, energy, motivation, stress, stressNote, sorenessMap, notes } = req.body
+  const readinessScore = calcReadiness(
+    sleep ?? existing.sleep,
+    energy ?? existing.energy,
+    motivation ?? existing.motivation,
+    stress ?? existing.stress,
+    sorenessMap ?? (existing.sorenessMap as { severity: number }[]),
+  )
+
+  const updated = await prisma.checkIn.update({
+    where: { id },
+    data: {
+      sleep: sleep ?? existing.sleep,
+      energy: energy ?? existing.energy,
+      motivation: motivation ?? existing.motivation,
+      stress: stress ?? existing.stress,
+      stressNote: stressNote !== undefined ? stressNote : existing.stressNote,
+      sorenessMap: sorenessMap ?? existing.sorenessMap,
+      notes: notes !== undefined ? notes : existing.notes,
+      readinessScore,
+    },
+  })
+
+  res.json({ success: true, data: updated })
+})
+
+// DELETE /api/checkin/:id — delete a check-in
+router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { id } = req.params
+  const existing = await prisma.checkIn.findUnique({ where: { id } })
+  if (!existing || existing.userId !== req.userId) {
+    res.status(404).json({ success: false, error: 'Check-in not found' })
+    return
+  }
+
+  await prisma.checkIn.delete({ where: { id } })
+  res.json({ success: true })
 })
 
 export default router
