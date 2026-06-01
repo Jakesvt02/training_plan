@@ -23,6 +23,16 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   res.json({ success: true, data: { logs, total, page, pages: Math.ceil(total / limit) } })
 })
 
+// GET /api/workout-logs/recent — last 5 for dashboard feed
+router.get('/recent', requireAuth, async (req: AuthRequest, res) => {
+  const logs = await prisma.workoutLog.findMany({
+    where: { userId: req.userId! },
+    orderBy: { date: 'desc' },
+    take: 5,
+  })
+  res.json({ success: true, data: logs })
+})
+
 // GET /api/workout-logs/:id
 router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   const log = await prisma.workoutLog.findFirst({
@@ -32,6 +42,14 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   res.json({ success: true, data: log })
 })
 
+// Estimate TSS from duration + effort when not explicitly provided
+// Formula: (durationMin / 60) * (effortRating / 5) * 100
+// e.g. 60 min at effort 4 = 80 TSS, 45 min at effort 3 = 45 TSS
+function estimateTss(durationMin?: number, effortRating?: number): number | null {
+  if (!durationMin || !effortRating) return null
+  return Math.round((durationMin / 60) * (effortRating / 5) * 100)
+}
+
 // POST /api/workout-logs
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   const { date, name, sessionType, durationMin, effortRating, notes, exercisesJson, plannedJson, tss } = req.body
@@ -39,6 +57,11 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   if (!sessionType) {
     return res.status(400).json({ success: false, error: 'sessionType is required' })
   }
+
+  const resolvedTss = tss ? parseInt(tss) : estimateTss(
+    durationMin ? parseInt(durationMin) : undefined,
+    effortRating ? parseInt(effortRating) : undefined,
+  )
 
   const log = await prisma.workoutLog.create({
     data: {
@@ -51,7 +74,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       notes: notes || null,
       plannedJson: plannedJson ?? null,
       exercisesJson: exercisesJson ?? [],
-      tss: tss ? parseInt(tss) : null,
+      tss: resolvedTss,
     },
   })
 
@@ -76,7 +99,14 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       ...(effortRating !== undefined && { effortRating: effortRating ? parseInt(effortRating) : null }),
       ...(notes !== undefined && { notes }),
       ...(exercisesJson !== undefined && { exercisesJson }),
-      ...(tss !== undefined && { tss: tss ? parseInt(tss) : null }),
+      ...(tss !== undefined || effortRating !== undefined || durationMin !== undefined) && {
+        tss: tss
+          ? parseInt(tss)
+          : estimateTss(
+              durationMin !== undefined ? (durationMin ? parseInt(durationMin) : existing.durationMin ?? undefined) : existing.durationMin ?? undefined,
+              effortRating !== undefined ? (effortRating ? parseInt(effortRating) : existing.effortRating ?? undefined) : existing.effortRating ?? undefined,
+            ),
+      },
     },
   })
 

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { apiGet, apiPost, apiPut } from '@/lib/api'
 import { ActivityCard } from '@/components/activity-card'
 import TrainingLoadChart from '@/components/TrainingLoadChart'
-import type { WeeklyPlanResponse, SessionPlan, Activity, LogExercise, LogSet } from '@threshold/shared'
+import type { WeeklyPlanResponse, SessionPlan, Activity, LogExercise, LogSet, WorkoutLog } from '@threshold/shared'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -243,6 +243,40 @@ function WorkoutDetails({ json }: { json: unknown }) {
   }
 
   return null
+}
+
+const SESSION_TYPE_COLORS: Record<string, string> = {
+  run: '#FF8C00', long_run: '#FF6B00', functional: '#FF3B30', hyrox_drills: '#CC2A22',
+  strength: '#4CAF50', lift: '#4CAF50', wod: '#9C27B0', recovery: '#4FC3F7', ride: '#3B9EFF',
+}
+
+function WorkoutLogCard({ log }: { log: WorkoutLog }) {
+  const color = SESSION_TYPE_COLORS[log.sessionType] ?? '#888'
+  const date = new Date(log.date)
+  const now = new Date()
+  const dDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const nDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diff = Math.round((nDay.getTime() - dDay.getTime()) / 86400000)
+  const dateStr = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : `${diff} days ago`
+
+  return (
+    <div className="flex items-center gap-3 py-3 px-4 border-b border-[#1A1A1A] last:border-0">
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black flex-shrink-0"
+        style={{ background: color + '20', color }}>
+        ✓
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white truncate">{log.name || log.sessionType.replace(/_/g, ' ')}</p>
+        <p className="text-xs text-gray-500">{dateStr}{log.durationMin ? ` · ${log.durationMin} min` : ''}</p>
+      </div>
+      <div className="text-right flex-shrink-0">
+        {log.tss != null && (
+          <div className="text-sm font-bold" style={{ color }}>{log.tss} <span className="text-xs font-normal text-gray-500">TSS</span></div>
+        )}
+        {log.effortRating && <div className="text-xs text-gray-500">Effort {log.effortRating}/5</div>}
+      </div>
+    </div>
+  )
 }
 
 function Dot() {
@@ -758,8 +792,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [recentActivities, setRecentActivities] = useState<Activity[]>([])
+  const [recentLogs, setRecentLogs] = useState<WorkoutLog[]>([])
+  const [trainingLoad, setTrainingLoad] = useState<{ atl: number; ctl: number; tsb: number } | null>(null)
   const [activeSession, setActiveSession] = useState<SessionPlan | null>(null)
   const [savedToast, setSavedToast] = useState(false)
+
+  function loadRecent() {
+    apiGet<Activity[]>('/api/activities/recent').then(setRecentActivities).catch(() => {})
+    apiGet<WorkoutLog[]>('/api/workout-logs/recent').then(setRecentLogs).catch(() => {})
+  }
 
   useEffect(() => {
     apiGet<WeeklyPlanResponse>('/api/plan/weekly')
@@ -767,8 +808,11 @@ export default function DashboardPage() {
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load plan'))
       .finally(() => setLoading(false))
 
-    apiGet<Activity[]>('/api/activities/recent')
-      .then(setRecentActivities)
+    loadRecent()
+
+    // Fetch latest training load (last 2 days, take most recent)
+    apiGet<{ date: string; atl: number; ctl: number; tsb: number }[]>('/api/training-load?days=2')
+      .then(data => { if (data.length) setTrainingLoad(data[data.length - 1]) })
       .catch(() => {})
   }, [])
 
@@ -776,6 +820,7 @@ export default function DashboardPage() {
     setActiveSession(null)
     setSavedToast(true)
     setTimeout(() => setSavedToast(false), 3000)
+    loadRecent()
   }
 
   if (loading) {
@@ -853,11 +898,34 @@ export default function DashboardPage() {
             <div className="text-[11px] text-gray-500 mt-0.5">Target TSS</div>
             <div className="text-[9px] text-gray-600 mt-0.5 leading-tight">Training Stress Score</div>
           </div>
-          <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }} title="Total planned training time this week">
+          <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }}>
             <div className="text-xl font-black text-white">{totalMinutes}m</div>
             <div className="text-[11px] text-gray-500 mt-0.5">Minutes</div>
           </div>
         </div>
+
+        {/* Training load row — CTL / ATL / TSB */}
+        {trainingLoad && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }}>
+              <div className="text-xl font-black" style={{ color: '#4FC3F7' }}>{Math.round(trainingLoad.ctl)}</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Fitness</div>
+              <div className="text-[9px] text-gray-600 mt-0.5 leading-tight">CTL · 42-day avg</div>
+            </div>
+            <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }}>
+              <div className="text-xl font-black" style={{ color: '#FF8C00' }}>{Math.round(trainingLoad.atl)}</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Fatigue</div>
+              <div className="text-[9px] text-gray-600 mt-0.5 leading-tight">ATL · 7-day avg</div>
+            </div>
+            <div className="rounded-xl p-3 text-center" style={{ background: '#141414', border: '1px solid #1E1E1E' }}>
+              <div className="text-xl font-black" style={{ color: trainingLoad.tsb >= 0 ? '#4CAF50' : '#FF3B30' }}>
+                {trainingLoad.tsb >= 0 ? '+' : ''}{Math.round(trainingLoad.tsb)}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Form</div>
+              <div className="text-[9px] text-gray-600 mt-0.5 leading-tight">TSB · fitness − fatigue</div>
+            </div>
+          </div>
+        )}
 
         {/* Week sessions */}
         <div className="space-y-2">
@@ -876,16 +944,19 @@ export default function DashboardPage() {
         {/* Training load chart */}
         <TrainingLoadChart />
 
-        {/* Recent activities */}
-        {recentActivities.length > 0 && (
+        {/* Recent activity feed — logged workouts + Strava activities */}
+        {(recentLogs.length > 0 || recentActivities.length > 0) && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-white">Recent Activities</h2>
-              <Link href="/dashboard/activities" className="text-xs text-[#FF8C00] hover:underline">
+              <h2 className="font-bold text-white">Recent Activity</h2>
+              <Link href="/dashboard/log" className="text-xs text-[#FF8C00] hover:underline">
                 View all →
               </Link>
             </div>
             <div className="rounded-2xl overflow-hidden" style={{ background: '#141414', border: '1px solid #1E1E1E' }}>
+              {recentLogs.map(log => (
+                <WorkoutLogCard key={log.id} log={log} />
+              ))}
               {recentActivities.map(activity => (
                 <ActivityCard key={activity.id} activity={activity} compact />
               ))}
