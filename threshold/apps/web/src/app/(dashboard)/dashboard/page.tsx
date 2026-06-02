@@ -259,6 +259,21 @@ function WorkoutLogCard({ log }: { log: WorkoutLog }) {
   const diff = Math.round((nDay.getTime() - dDay.getTime()) / 86400000)
   const dateStr = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : `${diff} days ago`
 
+  // Pace: min/km from duration + distance
+  let paceStr: string | null = null
+  if (log.distanceKm && log.durationMin && log.distanceKm > 0) {
+    const paceDecimal = log.durationMin / log.distanceKm
+    const paceMin = Math.floor(paceDecimal)
+    const paceSec = Math.round((paceDecimal - paceMin) * 60)
+    paceStr = `${paceMin}:${String(paceSec).padStart(2, '0')} /km`
+  }
+
+  const meta = [
+    dateStr,
+    log.durationMin ? `${log.durationMin} min` : null,
+    log.distanceKm ? `${log.distanceKm} km` : null,
+  ].filter(Boolean).join(' · ')
+
   return (
     <div className="flex items-center gap-3 py-3 px-4 border-b border-[#1A1A1A] last:border-0">
       <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black flex-shrink-0"
@@ -267,13 +282,14 @@ function WorkoutLogCard({ log }: { log: WorkoutLog }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-white truncate">{log.name || log.sessionType.replace(/_/g, ' ')}</p>
-        <p className="text-xs text-gray-500">{dateStr}{log.durationMin ? ` · ${log.durationMin} min` : ''}</p>
+        <p className="text-xs text-gray-500">{meta}</p>
       </div>
       <div className="text-right flex-shrink-0">
         {log.tss != null && (
           <div className="text-sm font-bold" style={{ color }}>{log.tss} <span className="text-xs font-normal text-gray-500">TSS</span></div>
         )}
-        {log.effortRating && <div className="text-xs text-gray-500">Effort {log.effortRating}/5</div>}
+        {paceStr && <div className="text-xs text-gray-400">{paceStr}</div>}
+        {!paceStr && log.effortRating ? <div className="text-xs text-gray-500">Effort {log.effortRating}/5</div> : null}
       </div>
     </div>
   )

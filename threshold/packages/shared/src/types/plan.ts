@@ -99,6 +99,7 @@ export interface WorkoutLog {
   sessionType: string
   durationMin?: number | null
   effortRating?: number | null
+  distanceKm?: number | null
   notes?: string | null
   plannedJson?: unknown
   exercisesJson: LogExercise[]

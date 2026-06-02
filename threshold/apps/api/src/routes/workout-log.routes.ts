@@ -52,7 +52,7 @@ function estimateTss(durationMin?: number, effortRating?: number): number | null
 
 // POST /api/workout-logs
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
-  const { date, name, sessionType, durationMin, effortRating, notes, exercisesJson, plannedJson, tss } = req.body
+  const { date, name, sessionType, durationMin, effortRating, distanceKm, notes, exercisesJson, plannedJson, tss } = req.body
 
   if (!sessionType) {
     return res.status(400).json({ success: false, error: 'sessionType is required' })
@@ -71,6 +71,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       sessionType,
       durationMin: durationMin ? parseInt(durationMin) : null,
       effortRating: effortRating ? parseInt(effortRating) : null,
+      distanceKm: distanceKm ? parseFloat(distanceKm) : null,
       notes: notes || null,
       plannedJson: plannedJson ?? null,
       exercisesJson: exercisesJson ?? [],
@@ -88,7 +89,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
   })
   if (!existing) return res.status(404).json({ success: false, error: 'Not found' })
 
-  const { name, sessionType, durationMin, effortRating, notes, exercisesJson, tss } = req.body
+  const { name, sessionType, durationMin, effortRating, distanceKm, notes, exercisesJson, tss } = req.body
 
   const log = await prisma.workoutLog.update({
     where: { id: req.params.id },
@@ -97,6 +98,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       ...(sessionType && { sessionType }),
       ...(durationMin !== undefined && { durationMin: durationMin ? parseInt(durationMin) : null }),
       ...(effortRating !== undefined && { effortRating: effortRating ? parseInt(effortRating) : null }),
+      ...(distanceKm !== undefined && { distanceKm: distanceKm ? parseFloat(distanceKm) : null }),
       ...(notes !== undefined && { notes }),
       ...(exercisesJson !== undefined && { exercisesJson }),
       ...(tss !== undefined || effortRating !== undefined || durationMin !== undefined) && {

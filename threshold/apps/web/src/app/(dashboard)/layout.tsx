@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { clearAuth, getUser } from '@/lib/auth'
 import { apiPost } from '@/lib/api'
 import type { StoredUser } from '@/lib/auth'
+import type { LogExercise, LogSet } from '@threshold/shared'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
@@ -21,6 +22,8 @@ const NAV = [
 ]
 
 const BOTTOM_PRIMARY = ['/dashboard', '/dashboard/checkin', '/dashboard/plan', '/dashboard/nutrition']
+
+const DISTANCE_TYPES = new Set(['run', 'long_run', 'ride', 'swim', 'cardio'])
 
 const SESSION_TYPES = [
   { value: 'run', label: 'Run' },
@@ -45,16 +48,76 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function SetRow({ set, setNum, onChange, onRemove }: {
+  set: LogSet
+  setNum: number
+  onChange: (s: LogSet) => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1.5 text-sm">
+      <span className="text-gray-600 text-xs w-6 text-right flex-shrink-0">{setNum}</span>
+      <input type="number" min={0} placeholder="Reps"
+        value={set.reps ?? ''}
+        onChange={e => onChange({ ...set, reps: e.target.value ? parseInt(e.target.value) : undefined })}
+        className="w-14 px-2 py-1.5 rounded-lg bg-[#0D0D0D] border border-[#2A2A2A] text-white placeholder-gray-700 focus:outline-none focus:border-[#FF3B30] text-center text-xs"
+      />
+      <input type="number" min={0} step={0.5} placeholder="kg"
+        value={set.weightKg ?? ''}
+        onChange={e => onChange({ ...set, weightKg: e.target.value ? parseFloat(e.target.value) : undefined })}
+        className="w-14 px-2 py-1.5 rounded-lg bg-[#0D0D0D] border border-[#2A2A2A] text-white placeholder-gray-700 focus:outline-none focus:border-[#FF3B30] text-center text-xs"
+      />
+      <input type="number" min={0} placeholder="m"
+        value={set.meters ?? ''}
+        onChange={e => onChange({ ...set, meters: e.target.value ? parseInt(e.target.value) : undefined })}
+        className="w-12 px-2 py-1.5 rounded-lg bg-[#0D0D0D] border border-[#2A2A2A] text-white placeholder-gray-700 focus:outline-none focus:border-[#FF3B30] text-center text-xs"
+      />
+      <input type="number" min={0} placeholder="sec"
+        value={set.durationSec ?? ''}
+        onChange={e => onChange({ ...set, durationSec: e.target.value ? parseInt(e.target.value) : undefined })}
+        className="w-12 px-2 py-1.5 rounded-lg bg-[#0D0D0D] border border-[#2A2A2A] text-white placeholder-gray-700 focus:outline-none focus:border-[#FF3B30] text-center text-xs"
+      />
+      <button type="button" onClick={onRemove} className="text-gray-700 hover:text-red-400 transition cursor-pointer px-1 text-base leading-none">×</button>
+    </div>
+  )
+}
+
 function QuickLogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('')
   const [sessionType, setSessionType] = useState('run')
   const [date, setDate] = useState(todayStr())
   const [durationMin, setDurationMin] = useState('')
+  const [distanceKm, setDistanceKm] = useState('')
   const [effortRating, setEffortRating] = useState(0)
+  const [exercises, setExercises] = useState<LogExercise[]>([])
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+
+  const showDistance = DISTANCE_TYPES.has(sessionType)
+
+  function addExercise() {
+    setExercises(prev => [...prev, { name: '', sets: [{}] }])
+  }
+  function updateExercise(i: number, ex: LogExercise) {
+    setExercises(prev => prev.map((e, idx) => idx === i ? ex : e))
+  }
+  function removeExercise(i: number) {
+    setExercises(prev => prev.filter((_, idx) => idx !== i))
+  }
+  function addSet(exIdx: number) {
+    setExercises(prev => prev.map((ex, i) => i === exIdx ? { ...ex, sets: [...ex.sets, {}] } : ex))
+  }
+  function updateSet(exIdx: number, setIdx: number, s: LogSet) {
+    setExercises(prev => prev.map((ex, i) => {
+      if (i !== exIdx) return ex
+      const sets = [...ex.sets]; sets[setIdx] = s; return { ...ex, sets }
+    }))
+  }
+  function removeSet(exIdx: number, setIdx: number) {
+    setExercises(prev => prev.map((ex, i) => i !== exIdx ? ex : { ...ex, sets: ex.sets.filter((_, si) => si !== setIdx) }))
+  }
 
   async function save() {
     if (!name.trim()) { setError('Give your workout a name'); return }
@@ -66,7 +129,9 @@ function QuickLogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         sessionType,
         date,
         durationMin: durationMin ? parseInt(durationMin) : undefined,
+        distanceKm: distanceKm ? parseFloat(distanceKm) : undefined,
         effortRating: effortRating || undefined,
+        exercisesJson: exercises.filter(ex => ex.name.trim()),
         notes: notes || undefined,
       })
       setDone(true)
@@ -158,18 +223,31 @@ function QuickLogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
             </div>
           </div>
 
-          {/* Duration */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Duration (minutes)</label>
-            <input
-              type="number"
-              min={1}
-              max={600}
-              placeholder="45"
-              value={durationMin}
-              onChange={e => setDurationMin(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm bg-[#1A1A1A] border border-[#2A2A2A] text-white placeholder-gray-600 focus:outline-none focus:border-[#FF3B30] transition"
-            />
+          {/* Duration + Distance row */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Duration (min)</label>
+              <input
+                type="number" min={1} max={600} placeholder="45"
+                value={durationMin}
+                onChange={e => setDurationMin(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-sm bg-[#1A1A1A] border border-[#2A2A2A] text-white placeholder-gray-600 focus:outline-none focus:border-[#FF3B30] transition"
+              />
+            </div>
+            {showDistance && (
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+                  Distance ({sessionType === 'swim' ? 'm' : 'km'})
+                </label>
+                <input
+                  type="number" min={0} step={0.01}
+                  placeholder={sessionType === 'swim' ? '1500' : '10.0'}
+                  value={distanceKm}
+                  onChange={e => setDistanceKm(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm bg-[#1A1A1A] border border-[#2A2A2A] text-white placeholder-gray-600 focus:outline-none focus:border-[#FF3B30] transition"
+                />
+              </div>
+            )}
           </div>
 
           {/* Effort */}
@@ -177,9 +255,7 @@ function QuickLogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
             <label className="block text-xs font-semibold text-gray-400 mb-2">Effort</label>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map(n => (
-                <button
-                  key={n}
-                  type="button"
+                <button key={n} type="button"
                   onClick={() => setEffortRating(effortRating === n ? 0 : n)}
                   className="flex-1 py-3 rounded-xl text-sm font-black transition cursor-pointer"
                   style={{
@@ -187,9 +263,7 @@ function QuickLogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                     border: `1px solid ${effortRating === n ? EFFORT_COLORS[n] : '#2A2A2A'}`,
                     color: effortRating === n ? EFFORT_COLORS[n] : '#6B7280',
                   }}
-                >
-                  {n}
-                </button>
+                >{n}</button>
               ))}
             </div>
             {effortRating > 0 && (
@@ -197,6 +271,68 @@ function QuickLogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                 {EFFORT_LABELS[effortRating]}
               </p>
             )}
+          </div>
+
+          {/* Exercises */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-white">Exercises</label>
+              <button type="button" onClick={addExercise}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                style={{ background: '#1E1E1E', border: '1px solid #2A2A2A', color: '#ccc' }}>
+                + Add
+              </button>
+            </div>
+
+            {exercises.length === 0 && (
+              <p className="text-xs text-gray-600 text-center py-2">
+                Optional — tap <span className="text-gray-400">+ Add</span> to log sets, reps & weight
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {exercises.map((ex, exIdx) => (
+                <div key={exIdx} className="rounded-xl p-3" style={{ background: '#1A1A1A', border: '1px solid #222' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Exercise name"
+                      value={ex.name}
+                      onChange={e => updateExercise(exIdx, { ...ex, name: e.target.value })}
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-[#0D0D0D] border border-[#2A2A2A] text-white placeholder-gray-600 focus:outline-none focus:border-[#FF3B30] font-semibold text-sm"
+                    />
+                    <button type="button" onClick={() => removeExercise(exIdx)}
+                      className="text-gray-600 hover:text-red-400 transition cursor-pointer text-xs">
+                      Remove
+                    </button>
+                  </div>
+
+                  {ex.sets.length > 0 && (
+                    <div className="mb-2">
+                      <div className="flex gap-1.5 text-[10px] text-gray-600 uppercase tracking-wide mb-1.5 ml-7">
+                        <span className="w-14 text-center">Reps</span>
+                        <span className="w-14 text-center">kg</span>
+                        <span className="w-12 text-center">m</span>
+                        <span className="w-12 text-center">sec</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {ex.sets.map((s, si) => (
+                          <SetRow key={si} set={s} setNum={si + 1}
+                            onChange={updated => updateSet(exIdx, si, updated)}
+                            onRemove={() => removeSet(exIdx, si)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="button" onClick={() => addSet(exIdx)}
+                    className="text-xs text-gray-500 hover:text-white transition cursor-pointer mt-1 ml-7">
+                    + Add set
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Notes */}

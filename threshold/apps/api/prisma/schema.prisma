@@ -304,6 +304,7 @@ model WorkoutLog {
   sessionType   String   // run | functional | strength | hyrox_drills | etc.
   durationMin   Int?
   effortRating  Int?     // 1-5
+  distanceKm    Float?   // for runs, rides, swims
   notes         String?
   plannedJson   Json?    // snapshot of sessionJson at time of logging
   exercisesJson Json     // [{ name, sets: [{ reps?, weightKg?, durationSec?, distanceM?, meters?, notes? }] }]
