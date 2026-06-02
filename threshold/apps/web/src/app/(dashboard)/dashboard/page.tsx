@@ -810,10 +810,14 @@ export default function DashboardPage() {
 
     loadRecent()
 
-    // Fetch latest training load (last 2 days, take most recent)
     apiGet<{ date: string; atl: number; ctl: number; tsb: number }[]>('/api/training-load?days=2')
       .then(data => { if (data.length) setTrainingLoad(data[data.length - 1]) })
       .catch(() => {})
+
+    // Refresh feed when a workout is logged via the global FAB
+    const onLogged = () => loadRecent()
+    window.addEventListener('workout-logged', onLogged)
+    return () => window.removeEventListener('workout-logged', onLogged)
   }, [])
 
   function handleSaved() {
